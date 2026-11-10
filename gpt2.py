@@ -1,3 +1,4 @@
+import json 
 import numpy as np
 from load_weights import load_safetensors
 
@@ -84,12 +85,23 @@ def gpt2(ids, weights, n_layers=12):
     # Steps 3-5: the same block, 12 times, each with its own weights
     for i in range(n_layers):
         x = block(x, weights, i)
-    return x
+        # Step 7: final layer norm, then compare with every token's embedding
+    x = layer_norm(x, weights["ln_f.weight"], weights["ln_f.bias"])
+    return x @ weights["wte.weight"].T       # (tokens, 50257) scores, called "logits"
 
 
 if __name__ == "__main__":
     weights = load_safetensors("models/gpt2/model.safetensors")
-    ids = [15496, 995]                   # "Hello world"
-    out = gpt2(ids, weights)
-    print("output shape:", out.shape)
-    print("out[1][:3]:  ", out[1][:3])
+    vocab = json.load(open("models/gpt2/vocab.json"))
+    id_to_token = {i: t for t, i in vocab.items()}       # reverse: ID -> token
+
+    words = ["The", "Ġcapital", "Ġof", "ĠFrance", "Ġis"]
+    ids = [vocab[w] for w in words]
+    print("ids:", ids)
+
+    logits = gpt2(ids, weights)              # (5, 50257)
+    probs = softmax(logits[-1])              # last token's scores -> probabilities
+
+    top5 = np.argsort(probs)[::-1][:5]       # IDs of the 5 highest probabilities
+    for t in top5:
+        print(repr(id_to_token[t]), round(float(probs[t]), 3))
