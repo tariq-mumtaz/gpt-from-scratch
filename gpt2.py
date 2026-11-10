@@ -38,6 +38,10 @@ def attention_head(q, k, v):
     weights = softmax(scores)                          # 4d: scores -> weights summing to 1
     return weights @ v                                 # 4e: weighted mix of the values
 
+def gelu(x):
+    # GPT-2's GELU (the tanh version): lets positive values through,
+    # squashes negative values towards 0, with a smooth curve in between
+    return 0.5 * x * (1 + np.tanh(np.sqrt(2 / np.pi) * (x + 0.044715 * x**3)))
 
 weights = load_safetensors("models/gpt2/model.safetensors")
 
@@ -156,3 +160,21 @@ print("x1 shape:", x1.shape)
 print("x[1][:3]:        ", x[1][:3])
 print("attn_out[1][:3]: ", attn_out[1][:3])
 print("x1[1][:3]:       ", x1[1][:3])
+
+# --- MLP, block 0 ---
+
+# 5b. Layer norm, expand to 3072, GELU, shrink back to 768, then add to x1
+h2 = layer_norm(x1, weights["h.0.ln_2.weight"], weights["h.0.ln_2.bias"])
+
+up_weight = weights["h.0.mlp.c_fc.weight"]       # (768, 3072), OpenAI calls it c_fc
+up_bias = weights["h.0.mlp.c_fc.bias"]           # (3072,)
+down_weight = weights["h.0.mlp.c_proj.weight"]   # (3072, 768), OpenAI calls it c_proj
+down_bias = weights["h.0.mlp.c_proj.bias"]       # (768,)
+
+up = gelu(h2 @ up_weight + up_bias)              # (2, 3072): expand, then bend
+mlp_out = up @ down_weight + down_bias           # (2, 768): shrink back
+
+# Residual: add the MLP's result to x1
+x2 = x1 + mlp_out
+print("up shape:  ", up.shape)
+print("x2 shape:  ", x2.shape)
