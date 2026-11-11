@@ -1,6 +1,6 @@
-import json 
 import numpy as np
 from load_weights import load_safetensors
+from tokenizer import Tokenizer
 
 def layer_norm(x, weight, bias, eps=1e-5):
     # Works on each row (token) separately: axis=-1 = across the row,
@@ -98,15 +98,12 @@ def generate(ids, weights, n_new):
         ids.append(next_id)
     return ids
 
+
 if __name__ == "__main__":
     weights = load_safetensors("models/gpt2/model.safetensors")
-    vocab = json.load(open("models/gpt2/vocab.json"))
-    id_to_token = {i: t for t, i in vocab.items()}
+    tok = Tokenizer("models/gpt2/vocab.json", "models/gpt2/merges.txt")
 
-    words = ["The", "Ġcapital", "Ġof", "ĠFrance", "Ġis"]
-    ids = [vocab[w] for w in words]
-
+    prompt = "Alan Turing theorized that computers would one day become"
+    ids = tok.encode(prompt)
     out = generate(ids, weights, n_new=20)
-    tokens = [id_to_token[i] for i in out]
-    text = "".join(tokens).replace("Ġ", " ")
-    print(text)
+    print(tok.decode(out))
