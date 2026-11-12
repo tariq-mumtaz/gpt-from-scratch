@@ -89,12 +89,57 @@ def gpt2(ids, weights, n_layers=12):
     x = layer_norm(x, weights["ln_f.weight"], weights["ln_f.bias"])
     return x @ weights["wte.weight"].T       # (tokens, 50257) scores, called "logits"
 
-def generate(ids, weights, n_new):
-    # Greedy generation: always pick the highest-scoring next token
+def top_k_filter(logits,k):
+    # keep the k highest score every other token will get -inf (porbability 0)
+    cutoff = np.sort(logits)[-k]            # the k-th highest score
+    return np.where(logits < cutoff,-np.inf,logits)
+
+def top_p_filter(logits,p):
+    # keep the most likely token until their probabilites add up to p
+    probs = softmax(logits)
+    # np.argsort(probs) returns the positions (IDs) 
+    # in the order that would sort the values from lowest to highest
+    # [::-1] reverses the list, so the most likely comes first:
+    order = np.argsort(probs)[::-1]
+    # np.cumsum = cumulative sum: each position holds the total of itself plus everything before it.
+    running_total = np.cumsum(probs[order])
+    # calculate total numbers
+    n_keep = int(np.sum(running_total < p)) + 1
+    keep = order[:n_keep]
+    filtered = np.full_like(logits,-np.inf)
+    filtered[keep] = logits[keep]
+    print("top_p keeps", n_keep, "tokens")
+    return filtered
+
+
+def sample(logits, temperature,rng, top_k=None, top_p=None):
+    # if temperature is 0 = greedy: always the highest score
+    if (temperature == 0):
+        return int(np.argmax(logits))
+
+    logits = logits / temperature
+
+    # Top-k: only the k best tokens may be choosen
+    if top_k is not None:
+        logits = top_k_filter(logits,top_k)
+
+    if top_p is not None:
+        logits = top_p_filter(logits,top_p)
+    
+    # Deivide score by temperature : < 1 sharpens, > 1 flattens
+    probs = softmax(logits)
+
+    # roll a weighted die: each token chance = it's probability
+    # (float 64, because rng.choice is strict about the probabilities summing to 1)
+    return int (rng.choice(len(probs),p=probs.astype(np.float64)))
+
+
+def generate(ids, weights, n_new,temperature=0.0,top_k=None,top_p=None, seed=None):
+    rng = np.random.default_rng(seed)            # random number generator
     ids = list(ids)                          # copy, so the caller's list isn't changed
     for _ in range(n_new):
         logits = gpt2(ids, weights)          # run the whole model on all tokens so far
-        next_id = int(np.argmax(logits[-1])) # the last token's highest score
+        next_id = sample(logits[-1],temperature,rng,top_k, top_p)
         ids.append(next_id)
     return ids
 
@@ -105,5 +150,11 @@ if __name__ == "__main__":
 
     prompt = "Alan Turing theorized that computers would one day become"
     ids = tok.encode(prompt)
-    out = generate(ids, weights, n_new=20)
-    print(tok.decode(out))
+    settings = [
+        (1.5, None, 0.8),     # high temperature, top-p only
+        (0.7, 20, 0.8),       # your app's chat settings
+    ]
+    for t, k, p in settings:
+        out = generate(ids, weights, n_new=20, temperature=t, top_k=k, top_p=p, seed=42)
+        print(f"--- temperature {t}, top_k {k}, top_p {p} ---")
+        print(tok.decode(out))
