@@ -115,7 +115,7 @@ check = layer_norm(x,np.ones(768),np.zeros(768))
 print(f"check mean: {check.mean(axis=-1)}")
 print(f"check std: {check.std(axis=-1)}")
 
-#something learned from block 0's learned lin_1 values
+#something learned from block 0's learned ln_1 values
 ln1_w = weights["h.0.ln_1.weight"]
 ln1_b = weights["h.0.ln_1.bias"]
 

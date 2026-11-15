@@ -2,7 +2,7 @@ import json
 import struct
 import numpy as np
 
-path = "models/gpt2/model.safetensors"
+MODEL_PATH = "models/gpt2/model.safetensors"
 
 def load_safetensors(path):
     with open(path,"rb") as f:
@@ -15,13 +15,15 @@ def load_safetensors(path):
         if name == "__metadata__":
             continue
         
-        assert info["dtype"] == "F32", f"{name}: unexpected dtype {info['dtype']}"
+        if info['dtype'] != 'F32':
+            raise ValueError(f"{name} : dtype only allowed F32 found {info['dtype']}")
+        
         start,end = info["data_offsets"]
         tensors[name] = np.frombuffer(data[start:end],dtype="<f4").reshape(info["shape"])
     return tensors
 
 if __name__ == "__main__":
-    weights = load_safetensors(path)
+    weights = load_safetensors(MODEL_PATH)
     total = 0
     for name, t in sorted(weights.items()):
         print(f"{name:28s} {str(t.shape):18s}")

@@ -85,17 +85,17 @@ def gpt2(ids, weights, n_layers=12):
     # Steps 3-5: the same block, 12 times, each with its own weights
     for i in range(n_layers):
         x = block(x, weights, i)
-        # Step 7: final layer norm, then compare with every token's embedding
+    # Step 7: final layer norm, then compare with every token's embedding
     x = layer_norm(x, weights["ln_f.weight"], weights["ln_f.bias"])
     return x @ weights["wte.weight"].T       # (tokens, 50257) scores, called "logits"
 
 def top_k_filter(logits,k):
-    # keep the k highest score every other token will get -inf (porbability 0)
+    # Keep the k highest scores; every other token gets -inf (probability 0)
     cutoff = np.sort(logits)[-k]            # the k-th highest score
     return np.where(logits < cutoff,-np.inf,logits)
 
 def top_p_filter(logits,p):
-    # keep the most likely token until their probabilites add up to p
+    # keep the most likely tokens until their probabilities add up to p
     probs = softmax(logits)
     # np.argsort(probs) returns the positions (IDs) 
     # in the order that would sort the values from lowest to highest
@@ -108,28 +108,28 @@ def top_p_filter(logits,p):
     keep = order[:n_keep]
     filtered = np.full_like(logits,-np.inf)
     filtered[keep] = logits[keep]
-    print("top_p keeps", n_keep, "tokens")
+
     return filtered
 
 
 def sample(logits, temperature,rng, top_k=None, top_p=None):
     # if temperature is 0 = greedy: always the highest score
-    if (temperature == 0):
+    if temperature == 0:
         return int(np.argmax(logits))
 
+    # Divide score by temperature : < 1 sharpens, > 1 flattens
     logits = logits / temperature
 
-    # Top-k: only the k best tokens may be choosen
+    # Top-k: only the k best tokens may be chosen
     if top_k is not None:
         logits = top_k_filter(logits,top_k)
 
     if top_p is not None:
         logits = top_p_filter(logits,top_p)
     
-    # Deivide score by temperature : < 1 sharpens, > 1 flattens
     probs = softmax(logits)
 
-    # roll a weighted die: each token chance = it's probability
+    # roll a weighted die: each token chance = its probability
     # (float 64, because rng.choice is strict about the probabilities summing to 1)
     return int (rng.choice(len(probs),p=probs.astype(np.float64)))
 
@@ -151,8 +151,9 @@ if __name__ == "__main__":
     prompt = "Alan Turing theorized that computers would one day become"
     ids = tok.encode(prompt)
     settings = [
+        (0.0, None, None),    # greedy: deterministic, same text every run
         (1.5, None, 0.8),     # high temperature, top-p only
-        (0.7, 20, 0.8),       # your app's chat settings
+        (0.7, 20, 0.8),       # chat settings, as in my local-ai-assistant
     ]
     for t, k, p in settings:
         out = generate(ids, weights, n_new=20, temperature=t, top_k=k, top_p=p, seed=42)

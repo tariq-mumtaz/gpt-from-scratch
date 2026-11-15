@@ -24,8 +24,10 @@ def bytes_to_unicode():
     return mapping
 
 def load_merges(path):
-    # read mergers.txt into a dictionary: (left, right) -> priority (0 = highest)
-    lines = open(path,"r", encoding="utf-8").read().split("\n")[1:]     #skip the version line
+    # read merges.txt into a dictionary: (left, right) -> priority (0 = highest)
+    with open(path,"r",encoding="utf-8") as f:
+        lines = f.read().split("\n")[1:]            #skip the version line
+        
     ranks = {}
     for i,line in enumerate(lines):
         if line:
@@ -49,7 +51,7 @@ def bpe(word,ranks):
         if best_pair is None:
             break
 
-        # 3. Glue every occurance of that pair
+        # 3. Glue every occurrence of that pair
         merged=[]
         i=0
         while i < len(pieces):

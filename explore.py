@@ -4,7 +4,7 @@ from load_weights import load_safetensors
 
 weights = load_safetensors("models/gpt2/model.safetensors")
 wte = weights["wte.weight"]
-vocab = json.load(open("models/gpt2/vocab.json","r"))
+vocab = json.load(open("models/gpt2/vocab.json","r",encoding="utf-8"))
 
 def cosine(a,b):
     return np.dot(a,b)/(np.linalg.norm(a)*np.linalg.norm(b))
